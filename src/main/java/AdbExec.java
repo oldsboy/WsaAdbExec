@@ -1,5 +1,7 @@
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Scanner;
 
@@ -11,16 +13,16 @@ public class AdbExec {
             return;
         }
 
-        if (devices.substring("List of devices attached".length()).length() == 0) {     //  检测到无adb连接的情况,自动启动windows的android子系统
+        if (devices.substring("List of devices attached".length()).replaceAll("[\\r|\\n]", "").length() == 0) {     //  检测到无adb连接的情况,自动启动windows的android子系统
             System.out.println("未发现启动的usb设备,正在启动windows子系统");
             System.out.println(execByRuntime("cmd /c C:\\Users\\h\\AppData\\Local\\Microsoft\\WindowsApps\\MicrosoftCorporationII.WindowsSubsystemForAndroid_8wekyb3d8bbwe\\WsaClient.exe /launch wsa://com.amazon.venezia"));
             System.out.println(execByRuntime("cmd /c adb connect localhost:58526"));
         }
 
-        select_device_flow();
+        select_device_flow(args);
     }
 
-    private static void select_device_flow() {
+    private static void select_device_flow(String[] args) {
         System.out.println("获取到设备列表:");
         String devices = execByRuntime("cmd /c adb devices -l");
         if (devices == null || !devices.startsWith("List of devices attached")) {
@@ -42,26 +44,45 @@ public class AdbExec {
             }
         }
 
-        String dn = select_device(device_list);
+        String dn = null;
+        if (device_list.size() == 1) {
+            dn = device_list.get(0);
+            System.out.println("当前仅有一个连接,自动使用连接->"+dn);
+        }else {
+            dn = select_device(device_list);
+        }
 
-        main_menu(dn);
+        main_menu(dn, args);
     }
 
-    /** @description    主菜单
+    /**
      * @param device_name 设备名
-     * @author oldsboy; @date 2022-10-09 16:47 */
-    private static void main_menu(String device_name) {
-        System.out.println("输入编号以执行命令:");
+     * @param args
+     * @description 主菜单
+     * @author oldsboy; @date 2022-10-09 16:47
+     */
+    private static void main_menu(String device_name, String[] args) {
+        if (args != null && args.length > 0) {
+            System.out.println("正在自动安装...");
+            installApp(device_name, args[0]);
+            System.out.println("安装完成,输入任何退出程序");
+            new Scanner(System.in).next();
+            System.exit(0);
+            return;
+        }
+
+        System.out.printf("当前设备:%s-输入编号以执行命令:\n", device_name);
         System.out.println("0.重新选择设备");
         System.out.println("1.查看所有第三方app包名");
         System.out.println("2.查看设备信息");
         System.out.println("3.安装应用");
+        System.out.println("4.卸载应用");
         System.out.println("c.执行自定义adb语句");
         System.out.println("q.退出");
 
         switch (new Scanner(System.in).next()) {
             case "0":
-                select_device_flow();
+                select_device_flow(null);
                 return;
             case "1":
                 System.out.println(execByRuntime("adb -s " + device_name + " shell pm list packages -3"));
@@ -70,9 +91,12 @@ public class AdbExec {
                 showDeviceInfo(device_name);
                 break;
             case "3":
-                System.out.println("将apk拖到这里来,给出apk路径:");
+                System.out.println("将apk拖到这里来,或者输入apk路径:");
                 String path = new Scanner(System.in).nextLine();
-                System.out.println("路径:"+path);
+                installApp(device_name, path);
+                break;
+            case "4":
+                uninstallApplication(device_name);
                 break;
             case "c":
                 System.out.println("请输入cmd语句:");
@@ -83,7 +107,45 @@ public class AdbExec {
                 return;
         }
 
-        main_menu(device_name);
+        main_menu(device_name, null);
+    }
+
+    private static boolean installApp(String device_name, String path) {
+        File file = new File(path);
+        if (!file.exists() || !file.getName().contains("apk")) {
+            System.out.println("文件格式不标准");
+            return false;
+        }
+        System.out.println(execByRuntime("adb -s " + device_name + " install -r "+path));
+        return true;
+    }
+
+    private static void uninstallApplication(String device_name) {
+        System.out.println("当前的操作是卸载应用,请谨慎操作");
+
+        String packages = execByRuntime("adb -s " + device_name + " shell pm list packages -3");
+        int index = 0;
+        ArrayList<String> package_info_list = new ArrayList<>();
+        ArrayList<String> package_list = new ArrayList<>();
+        for (String line : packages.split("\\r\\n")) {
+            package_info_list.add("编号-"+index+": 包名:"+line.replace("package:", ""));
+            package_list.add(line.replace("package:", ""));
+            index++;
+        }
+
+        for (String pkg : package_info_list) {
+            System.out.println(pkg);
+        }
+
+        System.out.println("输入编号以卸载应用:");
+        int code = new Scanner(System.in).nextInt();
+
+        System.out.printf("你要删除的应用的包是:%s,是否确认要卸载?(y/n)", package_list.get(code));
+        String b = new Scanner(System.in).next();
+        if (b.equals("y")) {
+            System.out.println(execByRuntime("adb -s " + device_name + " uninstall "+package_list.get(code)));
+        }
+        System.out.println();
     }
 
     private static void showDeviceInfo(String device_name) {
@@ -107,7 +169,6 @@ public class AdbExec {
     }
 
     /**
-     * 执行shell 命令， 命令中不必再带 adb shell
      * @param cmd
      * @return Sting  命令执行在控制台输出的结果
      */
