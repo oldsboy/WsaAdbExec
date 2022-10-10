@@ -13,12 +13,6 @@ public class AdbExec {
             return;
         }
 
-        if (devices.substring("List of devices attached".length()).replaceAll("[\\r|\\n]", "").length() == 0) {     //  检测到无adb连接的情况,自动启动windows的android子系统
-            System.out.println("未发现启动的usb设备,正在启动windows子系统");
-            System.out.println(execByRuntime("cmd /c C:\\Users\\h\\AppData\\Local\\Microsoft\\WindowsApps\\MicrosoftCorporationII.WindowsSubsystemForAndroid_8wekyb3d8bbwe\\WsaClient.exe /launch wsa://com.amazon.venezia"));
-            System.out.println(execByRuntime("cmd /c adb connect localhost:58526"));
-        }
-
         select_device_flow(args);
     }
 
