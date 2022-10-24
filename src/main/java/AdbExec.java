@@ -13,6 +13,16 @@ public class AdbExec {
             return;
         }
 
+        if (devices.substring("List of devices attached".length()).replaceAll("[\\r|\\n]", "").length() == 0) {     //  检测到无adb连接的情况,自动启动windows的android子系统
+            System.out.println("未发现启动的usb设备");
+        }
+
+        System.out.println("是否需要启动windows子系统(y)?");
+        if (new Scanner(System.in).next().equalsIgnoreCase("y")) {
+            System.out.println(execByRuntime("cmd /c C:\\Users\\h\\AppData\\Local\\Microsoft\\WindowsApps\\MicrosoftCorporationII.WindowsSubsystemForAndroid_8wekyb3d8bbwe\\WsaClient.exe /launch wsa://com.amazon.venezia"));
+            System.out.println(execByRuntime("cmd /c adb connect localhost:58526"));
+        }
+
         select_device_flow(args);
     }
 
@@ -27,18 +37,23 @@ public class AdbExec {
 
         LinkedList<String> device_list = new LinkedList<>();
         String[] split = device_source.split("\\n");
+        boolean flag = false;   //  是否有设备
         for (int i = 0; i < split.length; i++) {
-            String device = split[i];
-            device = device.trim();
+            String device = split[i].trim();
             if (device.length() > 0) {
+                flag = true;
                 String device_name = device.split("\\s{2,}")[0];
                 String device_product = device.split("\\s{2,}")[1].replaceAll("device product:", "");
                 device_list.add(device_name);
                 System.out.printf("编号%s-设备名%s-设备信息:%s\n", device_list.size()-1, device_name, device_product);
             }
         }
+        if (!flag){
+            System.out.println("无usb设备,接入后再来吧");
+            return;
+        }
 
-        String dn = null;
+        String dn;
         if (device_list.size() == 1) {
             dn = device_list.get(0);
             System.out.println("当前仅有一个连接,自动使用连接->"+dn);
@@ -57,11 +72,15 @@ public class AdbExec {
      */
     private static void main_menu(String device_name, String[] args) {
         if (args != null && args.length > 0) {
-            System.out.println("正在自动安装...");
-            installApp(device_name, args[0]);
-            System.out.println("安装完成,输入任何退出程序");
-            new Scanner(System.in).next();
-            System.exit(0);
+            System.out.println("确认安装软件(y?):"+args[0]);
+            if (new Scanner(System.in).next().equalsIgnoreCase("y")) {
+                System.out.println("正在自动安装...");
+                installApp(device_name, args[0]);
+                System.out.println("安装完成,输入任何退出程序");
+                new Scanner(System.in).next();
+                System.exit(0);
+            }
+
             return;
         }
 
